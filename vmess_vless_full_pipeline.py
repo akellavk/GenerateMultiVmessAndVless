@@ -35,7 +35,8 @@ WANTED_ORDER_VMESS = [
 
 WANTED_ORDER_VLESS = [
     "add", "port", "id", "ps", "type", "encryption", "security",
-    "sni", "host", "path", "headerType", "seed", "fp", "alpn", "allowInsecure"
+    "sni", "host", "path", "seed", "fp", "alpn", "allowInsecure",
+    "mode", "pbk", "sid", "spx", "pqv", "ech", "flow"
 ]
 
 DEFAULTS_IF_MISSING_VMESS = {
@@ -49,7 +50,6 @@ DEFAULTS_IF_MISSING_VLESS = {
     "encryption": "none",
     "security": "none",
     "type": "tcp",
-    "headerType": "none",
     "allowInsecure": 1,
 }
 
@@ -90,8 +90,9 @@ def encode_vless_url(config: dict) -> str:
 
     # Формируем query параметры
     query_params = {}
-    for key in ["type", "encryption", "security", "sni", "host", "path",
-                "headerType", "seed", "fp", "alpn", "allowInsecure"]:
+    NON_QUERY_FIELDS = {"add", "port", "id", "ps"}
+    VLESS_QUERY_PARAMS = [field for field in WANTED_ORDER_VLESS if field not in NON_QUERY_FIELDS]
+    for key in VLESS_QUERY_PARAMS:
         if key in config and config[key] and config[key] != "":
             query_params[key] = config[key]
 
@@ -289,7 +290,7 @@ def make_vless_lines(template: str, replacements):
             template_obj = json.loads(template)
             if "sni" in template_obj:
                 template_obj["sni"] = rep
-            if "host" in template_obj:
+            if "host" in template_obj and template_obj['type'] not in ("xhttp", "ws"):
                 template_obj["host"] = rep
             if "ps" in template_obj:
                 template_obj["ps"] = f'{template_obj["ps"]} ({rep})'
