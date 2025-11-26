@@ -29,12 +29,12 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 # --- параметры для decode ---
 
 WANTED_ORDER_VMESS = [
-    "add","aid","allowInsecure","alpn","fp","host","id","net","path",
-    "port","ps","scy","sni","tls","type","v"
+    "add", "aid", "allowInsecure", "alpn", "fp", "host", "id", "net", "path",
+    "port", "ps", "scy", "sni", "tls", "type", "v"
 ]
 
 WANTED_ORDER_VLESS = [
-    "add", "port", "id", "ps", "type", "encryption", "security", 
+    "add", "port", "id", "ps", "type", "encryption", "security",
     "sni", "host", "path", "headerType", "seed", "fp", "alpn", "allowInsecure"
 ]
 
@@ -53,6 +53,7 @@ DEFAULTS_IF_MISSING_VLESS = {
     "allowInsecure": 1,
 }
 
+
 def truthy_to_int(v):
     if isinstance(v, bool):
         return 1 if v else 0
@@ -63,45 +64,48 @@ def truthy_to_int(v):
         return 1 if s in {"1", "true", "yes", "y", "on"} else 0
     return 0
 
+
 def parse_vless_url(url: str) -> dict:
     """Парсит vless URL и возвращает словарь с параметрами"""
     parsed = urlparse(url)
-    
+
     result = {
         "id": parsed.username,
         "add": parsed.hostname,
         "port": str(parsed.port),
         "ps": parsed.fragment or "",
     }
-    
+
     # Парсим query параметры
     query_params = parse_qs(parsed.query)
     for key, value in query_params.items():
         result[key] = value[0] if len(value) == 1 else value
-    
+
     return result
+
 
 def encode_vless_url(config: dict) -> str:
     """Создает vless URL из конфигурации"""
     netloc = f"{config['id']}@{config['add']}:{config['port']}"
-    
+
     # Формируем query параметры
     query_params = {}
-    for key in ["type", "encryption", "security", "sni", "host", "path", 
+    for key in ["type", "encryption", "security", "sni", "host", "path",
                 "headerType", "seed", "fp", "alpn", "allowInsecure"]:
         if key in config and config[key] and config[key] != "":
             query_params[key] = config[key]
-    
+
     query_string = urlencode(query_params)
     fragment = config.get("ps", "")
-    
+
     return urlunparse(("vless", netloc, "", "", query_string, fragment))
+
 
 def decode_vmess_or_vless_line(line: str) -> dict:
     s = line.strip()
     if not s:
         raise ValueError("Пустая строка")
-    
+
     if s.startswith("vmess://"):
         s = s[len("vmess://"):]
         pad = (-len(s)) % 4
@@ -111,19 +115,20 @@ def decode_vmess_or_vless_line(line: str) -> dict:
         obj = json.loads(raw.decode("utf-8"))
         obj["_type"] = "vmess"
         return obj
-        
+
     elif s.startswith("vless://"):
         obj = parse_vless_url(s)
         obj["_type"] = "vless"
         return obj
-        
+
     elif s.startswith("{") and s.endswith("}"):
         obj = json.loads(s)
         obj["_type"] = obj.get("_type", "vmess")  # по умолчанию vmess для JSON
         return obj
-        
+
     else:
         raise ValueError("Строка не vmess://, не vless:// и не JSON")
+
 
 def normalize_vmess_entry(d: dict) -> dict:
     out = dict(d)
@@ -145,6 +150,7 @@ def normalize_vmess_entry(d: dict) -> dict:
     ordered["_type"] = "vmess"
     return ordered
 
+
 def normalize_vless_entry(d: dict) -> dict:
     out = dict(d)
 
@@ -165,11 +171,13 @@ def normalize_vless_entry(d: dict) -> dict:
     ordered["_type"] = "vless"
     return ordered
 
+
 def normalize_entry(d: dict) -> dict:
     if d.get("_type") == "vless":
         return normalize_vless_entry(d)
     else:
         return normalize_vmess_entry(d)
+
 
 def decode_file_inplace(path: Path):
     if not path.exists():
@@ -182,7 +190,7 @@ def decode_file_inplace(path: Path):
         written = 0
         vmess_count = 0
         vless_count = 0
-        
+
         with path.open("r", encoding="utf-8") as f:
             for idx, line in enumerate(f, 1):
                 s = line.strip()
@@ -191,23 +199,28 @@ def decode_file_inplace(path: Path):
                 try:
                     obj = decode_vmess_or_vless_line(s)
                     norm = normalize_entry(obj)
-                    
+
                     if norm["_type"] == "vmess":
-                        compact = json.dumps(norm, ensure_ascii=False, separators=(",", ":"))
+                        compact = json.dumps(
+                            norm, ensure_ascii=False, separators=(",", ":"))
                         vmess_count += 1
                     else:
-                        compact = json.dumps(norm, ensure_ascii=False, separators=(",", ":"))
+                        compact = json.dumps(
+                            norm, ensure_ascii=False, separators=(",", ":"))
                         vless_count += 1
-                    
+
                     tmp.write(compact + "\n")
                     written += 1
                 except Exception as e:
-                    print(f"[decode] Строка {idx} пропущена: {e}", file=sys.stderr)
+                    print(
+                        f"[decode] Строка {idx} пропущена: {e}", file=sys.stderr)
 
     os.replace(tmp_name, path)
-    print(f"[decode] Готово: записано {written} строк в {path} (vmess: {vmess_count}, vless: {vless_count})")
+    print(
+        f"[decode] Готово: записано {written} строк в {path} (vmess: {vmess_count}, vless: {vless_count})")
 
 # --- encode ---
+
 
 def read_first_nonempty_line(path: Path) -> str:
     with path.open("r", encoding="utf-8") as f:
@@ -217,12 +230,14 @@ def read_first_nonempty_line(path: Path) -> str:
                 return s
     return ""
 
+
 def read_lines(path: Path):
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             s = line.strip()
             if s != "":
                 yield s
+
 
 def make_proxy_lines(template: str, replacements):
     """Создает строки proxy в зависимости от типа шаблона"""
@@ -235,11 +250,12 @@ def make_proxy_lines(template: str, replacements):
             proxy_type = "vless"
         else:
             proxy_type = "vmess"
-    
+
     if proxy_type == "vmess":
         return make_vmess_lines(template, replacements)
     else:
         return make_vless_lines(template, replacements)
+
 
 def make_vmess_lines(template: str, replacements):
     out = []
@@ -253,8 +269,10 @@ def make_vmess_lines(template: str, replacements):
                 template_obj["host"] = rep
             if "ps" in template_obj:
                 template_obj["ps"] = f'{template_obj["ps"]} ({rep})'
-            replaced_json = json.dumps(template_obj, ensure_ascii=False, separators=(",", ":"))
-            b64 = base64.b64encode(replaced_json.encode("utf-8")).decode("ascii")
+            replaced_json = json.dumps(
+                template_obj, ensure_ascii=False, separators=(",", ":"))
+            b64 = base64.b64encode(
+                replaced_json.encode("utf-8")).decode("ascii")
             out.append("vmess://" + b64)
         except:
             # Fallback: простая замена в строке
@@ -262,6 +280,7 @@ def make_vmess_lines(template: str, replacements):
             b64 = base64.b64encode(replaced.encode("utf-8")).decode("ascii")
             out.append("vmess://" + b64)
     return out
+
 
 def make_vless_lines(template: str, replacements):
     out = []
@@ -274,12 +293,13 @@ def make_vless_lines(template: str, replacements):
                 template_obj["host"] = rep
             if "ps" in template_obj:
                 template_obj["ps"] = f'{template_obj["ps"]} ({rep})'
-            
+
             vless_url = encode_vless_url(template_obj)
             out.append(vless_url)
         except Exception as e:
             print(f"Ошибка при создании vless ссылки: {e}", file=sys.stderr)
     return out
+
 
 def encode_files(tmpl_path: Path, sni_path: Path, out_path: Path):
     if not tmpl_path.exists():
@@ -296,7 +316,8 @@ def encode_files(tmpl_path: Path, sni_path: Path, out_path: Path):
 
     replacements = list(read_lines(sni_path))
     if not replacements:
-        print(f"Предупреждение: файл SNI {sni_path} пуст. Ничего не записано.", file=sys.stderr)
+        print(
+            f"Предупреждение: файл SNI {sni_path} пуст. Ничего не записано.", file=sys.stderr)
         out_path.write_text("", encoding="utf-8")
         return
 
@@ -309,6 +330,7 @@ def encode_files(tmpl_path: Path, sni_path: Path, out_path: Path):
     print(f"[encode] Готово: записано {len(proxy_lines)} строк в {out_path}")
 
 # --- main ---
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -331,6 +353,7 @@ def main():
 
     # 2) encode
     encode_files(tmpl, sni, outp)
+
 
 if __name__ == "__main__":
     main()
